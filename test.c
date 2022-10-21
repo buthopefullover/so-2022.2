@@ -7,13 +7,14 @@
 #define MAXPROCESSES 5      //Numero maximo de processos
 #define MAXTIME 5          //tempo maximo que o processo pode ter
 
+
 int ProcessExe = MAXPROCESSES;           //Processos a serem executados
 
 
 //Escalonador Round-Robin (TODO: com feedback)
-int Escalonador(Processo **P){
+int Escalonador(Process **P){
   int t = 0;                    // tempo geral do escalonador
-  struct Processo *last = NULL; // ultimo elemento da lista (encadeada circular) de espera
+  struct Process *last = NULL; // ultimo elemento da lista (encadeada circular) de espera
   int t_quantum = 0;            // tempo do quantum do processo em execução
 
   while(ProcessExe){
@@ -23,6 +24,18 @@ int Escalonador(Processo **P){
       // diminui o tempo restante de execução do processo atual
       (last->next->pExecTime)--;
       printf("Processo %d diminuiu para %d.\n", last->next->pId, last->next->pExecTime);
+      checkBlockedProcesses(last);
+    }
+
+    // checa se algum IO chegou (foi pedido algum IO)
+    if(last->next->pIo.ioArrivalTime == t_quantum) {
+      changeStatus(last->next, BLOCKED);
+      printf("Processo %d voltou pra espera por causa de um IO.\n", last->next->pId);
+      // move o processo para o final da fila de espera
+      changeHead(&last);
+      traverse(last);
+      // reinicia o quantum para o novo processo que entrará em execução
+      t_quantum = 0;
     }
 
     // checa se alguém chegou na fila (algum processo foi iniciado)
@@ -30,12 +43,13 @@ int Escalonador(Processo **P){
       if (P[i]->pArrivalTime == t) {
         // insere o processo que acabou de chegar no final da fila
         last = insertAtEnd(last,P[i]);
+
         // imprime a lista de espera atualizada
         traverse(last);
         printf("Processo %d entrou na lista de espera.\n", P[i]->pId);
         // imprime info do processo que acabou de chegar
         printProcess(P[i]);
-      }
+      } 
     }
     
     
@@ -45,6 +59,7 @@ int Escalonador(Processo **P){
         printf("Processo %d acabou.\n", last->next->pId);
         // deleta da lista de espera o processo que acabou de terminar
         deleteHead(&last);
+        
         traverse(last);
         // decrementa o total de processos a serem concluidos
         ProcessExe--;
@@ -101,7 +116,7 @@ int main(){
     //fila de execução
     int fila[MAXPROCESSES];
 
-    Processo **processes = malloc(sizeof(Processo*) * MAXPROCESSES);
+    Process **processes = malloc(sizeof(Process*) * MAXPROCESSES);
 
     createProcesses(processes);
     

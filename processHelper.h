@@ -4,25 +4,53 @@
 
 #define MAXPROCESSES 5      //Numero maximo de processos
 #define MAXTIME 5          //tempo maximo que o processo pode ter
+#define DISCTIME 2
+#define TAPETIME 3
+#define PRINTERTIME 4
+
+
+typedef enum {
+  WAITING, READY, RUNNING, BLOCKED, FINISHED
+} STATUS;
+
+//Tipagem de IO
+typedef enum {
+    NONE, DISC, TAPE, PRINTER
+} IO_TYPE;
+
+//
+typedef struct InOut {
+    IO_TYPE ioType;
+    int ioArrivalTime;
+    int ioExecTime;
+} InOut;
 
 //Estrutura do Processo
-typedef struct Processo
+typedef struct Process
 {
     int pArrivalTime;          //momento que o processo chega na fila
-    char status[10];           //status
+    STATUS status;           //status
     int pId;                   //process identification
     int pExecTime;             //tempo de processo
-    struct Processo *next;     //proximo processo na fila
-}Processo;
+    InOut pIo;
+    struct Process *next;     //proximo processo na fila
+}Process;
 
-struct Processo* insertAtEnd(Processo * last, Processo* newProcess) {
+void changeStatus(Process *process, STATUS status){
+    process->status = status;
+}
+
+struct Process* insertAtEnd(Process * last, Process* newProcess) {
   
   // se a lista esta vazia o processo irá apontar pra ele mesmo
   if (last == NULL) {
     last = newProcess;
     newProcess -> next = last;
+    changeStatus(newProcess, RUNNING);
     return last;
   }
+
+  changeStatus(newProcess, WAITING);
 
   // novo processo aponta para a cabeca da lista já que ele agora será o ultimo
   newProcess->next = last->next;
@@ -38,14 +66,18 @@ struct Processo* insertAtEnd(Processo * last, Processo* newProcess) {
   
 }
 
-void changeHead(struct Processo** last) {
+void changeHead(struct Process** last) {
+  changeStatus((*last)->next, WAITING);
   // faz a cabeca ser o ultimo processo
   *last = (*last)->next;
+  changeStatus((*last)->next, RUNNING);
 }
 
-void deleteHead(struct Processo** last) {
+void deleteHead(struct Process** last) {
   // checa se a lista esta vazia, ou seja não tem nada a ser deletado
   if (*last == NULL) return;
+
+  changeStatus((*last)->next, FINISHED);
 
   // checa se a lista tem apenas
   if ((*last)->next == *last) {
@@ -54,9 +86,8 @@ void deleteHead(struct Processo** last) {
     return;
   }
 
-  struct Processo *d;
+  struct Process *d;
 
-  
   d = (*last)->next;
   (*last)->next = d->next;
   free(d);
@@ -64,43 +95,83 @@ void deleteHead(struct Processo** last) {
 }
 
 
-
 //imprime os dados do processo na tela
-void printProcess(Processo *P){
-    printf("Processo: %d    Status: %s      Tempo Restante: %d      Tempo Chegada: %d     Proximo: %d\n", P->pId, P->status, P->pExecTime, P->pArrivalTime, P->next->pId);
+void printProcess(Process *P){
+    printf("Processo: %d    Tempo Restante: %d      Tempo Chegada: %d     Proximo: %d\n", P->pId, P->pExecTime, P->pArrivalTime, P->next->pId);
 }
 
-void createProcesses (Processo **P) {
+void createProcesses (Process **pList) {
     for (int i=0; i<MAXPROCESSES; i++) {
-        Processo *process = (Processo *) malloc(sizeof(Processo));      //alocação do processo
-        int rTime = rand() % MAXTIME + 1;                                  //valor aleatorio de 1 até MAXTIME 
-        int tempoC = rand() % MAXTIME;                      // DE 0 ATÉ 4 
-        process->pArrivalTime = tempoC;                     //TEMPO EM QUE O PROCESSO CHEGA A FILA
-        process->pExecTime = rTime;                                            //tempo de execução que o processo precisa
-        process->pId = i;
-        if (i==0){strcpy(process->status,"Execucao");}
-        else strcpy(process->status,"Espera");
+        Process *process = (Process *) malloc(sizeof(Process));      //alocação do processo
+        int randomArrivalTime = rand() % MAXTIME;                      // DE 0 ATÉ 4 
+        int randomExecTime = rand() % MAXTIME + 1;                                 //valor aleatorio de 1 até MAXTIME 
+        int randomIoType = rand() % 4;                                  //valor aleatorio de 0 até 3 
+        
+        process->pId = i;       
+        process->status = WAITING;
+        process->pArrivalTime = randomArrivalTime;                                 //TEMPO EM QUE O PROCESSO CHEGA A FILA
+        process->pExecTime = randomExecTime;                                       //tempo de execução que o processo precisa
 
-        P[i] = process;
+        switch (randomIoType) {
+          //caso de nenhum io (None)
+          case 0:
+            process->pIo.ioType = NONE;
+            break;
+          //caso de disco (Disc)
+          case 1:
+            process->pIo.ioType = DISC;
+            process->pIo.ioExecTime = DISCTIME;
+            break;
+          //caso de fita (Tape)
+          case 2:
+            process->pIo.ioType = TAPE;
+            process->pIo.ioExecTime = TAPETIME;
+            break;
+          //caso de impressora (Printer)
+          case 3:
+            process->pIo.ioType = PRINTER;
+            process->pIo.ioExecTime = PRINTERTIME;
+            break;
+        }
+
+        process->pIo.ioArrivalTime = (rand() % (process->pArrivalTime - 1)) + 1; // talvez n fazer se for none
+    
+        pList[i] = process;
         
     }
 }
 
-void traverse(struct Processo* last) {
-  struct Processo* p;
+void checkBlockedProcesses (struct Process* last) {
+  struct Process* p;
 
+  // armazena o comeco da lista, por onde a impressão vai comecar 
+  p = last->next;
+
+  do {
+    if (p->status == BLOCKED) {
+      p->pIo.ioExecTime--; // diminui o tempo de execução do IO
+      printf("IO do processo %d diminui para %d.\n", p->pId, p->pIo.ioExecTime); // imprime o pid do processo e o tempo restante do I/O
+    }
+    p = p->next; // vai para o próximo elemento da lista
+  } while (p != last->next); // até chegar na cabeca de novo
+}
+
+void traverse(struct Process* last) {
+  struct Process* p;
+
+  // checa se a lista está vazia, se estiver nem precisa imprimir
   if (last == NULL) {
   printf("A lista esta vazia.\n");
   return;
   }
 
+  // armazena o comeco da lista, por onde a impressão vai comecar 
   p = last->next;
 
   do {
-  printf("PID: %d ", p->pId);
-  p = p->next;
-
-  } while (p != last->next);
+    printf("PID: %d ", p->pId); // imprime o pid do processo
+    p = p->next; // vai para o próximo elemento da lista
+  } while (p != last->next); // até chegar na cabeca de novo
 
   printf("\n");
 }
