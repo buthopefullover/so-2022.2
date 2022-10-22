@@ -31,14 +31,18 @@ typedef struct Process
     int pArrivalTime;          //momento que o processo chega na fila
     STATUS status;           //status
     int pId;                   //process identification
+    int pRemainingTime;
     int pExecTime;             //tempo de processo
     InOut pIo;
     struct Process *next;     //proximo processo na fila
 }Process;
 
+struct Process *blockedList[MAXPROCESSES];
+
 void changeStatus(Process *process, STATUS status){
     process->status = status;
 }
+
 
 struct Process* insertAtEnd(Process * last, Process* newProcess) {
   
@@ -97,7 +101,7 @@ void deleteHead(struct Process** last) {
 
 //imprime os dados do processo na tela
 void printProcess(Process *P){
-    printf("Processo: %d    Tempo Restante: %d      Tempo Chegada: %d     Proximo: %d\n", P->pId, P->pExecTime, P->pArrivalTime, P->next->pId);
+    printf("Processo: %d    Tempo Restante: %d      Tempo Chegada: %d     Tipo IO: %d     Chegada IO: %d    Proximo: %d\n", P->pId, P->pExecTime, P->pArrivalTime, P->pIo.ioType, P->pIo.ioArrivalTime, P->next->pId);
 }
 
 void createProcesses (Process **pList) {
@@ -105,12 +109,20 @@ void createProcesses (Process **pList) {
         Process *process = (Process *) malloc(sizeof(Process));      //alocação do processo
         int randomArrivalTime = rand() % MAXTIME;                      // DE 0 ATÉ 4 
         int randomExecTime = rand() % MAXTIME + 1;                                 //valor aleatorio de 1 até MAXTIME 
-        int randomIoType = rand() % 4;                                  //valor aleatorio de 0 até 3 
+        int randomIoType;                                  // valor que indicará a tipagem do IO
         
         process->pId = i;       
         process->status = WAITING;
         process->pArrivalTime = randomArrivalTime;                                 //TEMPO EM QUE O PROCESSO CHEGA A FILA
         process->pExecTime = randomExecTime;                                       //tempo de execução que o processo precisa
+        process->pRemainingTime = process->pExecTime;                                       //tempo de execução que resta do processo
+        
+        if (process->pExecTime == 1) {
+          randomIoType = 0; // se o processo tem tempo de execução 1 n tem tempo de fzr um IO
+        }
+        else {
+          randomIoType = rand() % 4;    //valor aleatorio de 0 até 3 
+        }
 
         switch (randomIoType) {
           //caso de nenhum io (None)
@@ -134,26 +146,44 @@ void createProcesses (Process **pList) {
             break;
         }
 
-        process->pIo.ioArrivalTime = (rand() % (process->pArrivalTime - 1)) + 1; // talvez n fazer se for none
+        
+        // se o processo tiver um IO, escolhe um tempo de chegada aleatório respeitando o limite de tempo do processo
+        if (process->pIo.ioType != NONE){
+          process->pIo.ioArrivalTime = (rand() % (process->pExecTime - 1)) + 1 ;
+        }
     
         pList[i] = process;
         
     }
 }
 
-void checkBlockedProcesses (struct Process* last) {
-  struct Process* p;
+void blockProcess(struct Process** last){
+  changeStatus((*last)->next, BLOCKED);
+  blockedList[(*last)->next->pId] = (*last)->next;
+  deleteHead(last);
+}
 
-  // armazena o comeco da lista, por onde a impressão vai comecar 
-  p = last->next;
-
-  do {
-    if (p->status == BLOCKED) {
-      p->pIo.ioExecTime--; // diminui o tempo de execução do IO
-      printf("IO do processo %d diminui para %d.\n", p->pId, p->pIo.ioExecTime); // imprime o pid do processo e o tempo restante do I/O
+void decrementBlockedProcesses () {
+  for (int i = 0; i<MAXPROCESSES; i++) {
+    if(blockedList[i] != NULL) {
+      blockedList[i]->pIo.ioExecTime = blockedList[i]->pIo.ioExecTime--;
     }
-    p = p->next; // vai para o próximo elemento da lista
-  } while (p != last->next); // até chegar na cabeca de novo
+  }
+}
+
+
+void checkBlockedProcesses (struct Process** last) {
+    for (int i = 0; i<MAXPROCESSES; i++) {
+        printf("PROCESSO: %p \n", (blockedList)[i]);
+    }
+
+  for (int i = 0; i<MAXPROCESSES; i++) {
+    if(blockedList[i] != NULL && blockedList[i]->pIo.ioExecTime == 0) {
+      changeStatus(blockedList[i], WAITING);
+      (*last) = insertAtEnd((*last), blockedList[i]);
+      
+    }
+  }
 }
 
 void traverse(struct Process* last) {

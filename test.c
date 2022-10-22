@@ -15,6 +15,7 @@ int ProcessExe = MAXPROCESSES;           //Processos a serem executados
 int Escalonador(Process **P){
   int t = 0;                    // tempo geral do escalonador
   struct Process *last = NULL; // ultimo elemento da lista (encadeada circular) de espera
+  struct Process *blockedList[MAXPROCESSES] = { NULL };
   int t_quantum = 0;            // tempo do quantum do processo em execução
 
   while(ProcessExe){
@@ -22,20 +23,21 @@ int Escalonador(Process **P){
 
     if(last != NULL) {
       // diminui o tempo restante de execução do processo atual
-      (last->next->pExecTime)--;
-      printf("Processo %d diminuiu para %d.\n", last->next->pId, last->next->pExecTime);
-      checkBlockedProcesses(last);
-    }
+      (last->next->pRemainingTime)--;
+      printf("Processo %d diminuiu para %d.\n", last->next->pId, last->next->pRemainingTime);
 
-    // checa se algum IO chegou (foi pedido algum IO)
-    if(last->next->pIo.ioArrivalTime == t_quantum) {
-      changeStatus(last->next, BLOCKED);
-      printf("Processo %d voltou pra espera por causa de um IO.\n", last->next->pId);
-      // move o processo para o final da fila de espera
-      changeHead(&last);
-      traverse(last);
-      // reinicia o quantum para o novo processo que entrará em execução
-      t_quantum = 0;
+      decrementBlockedProcesses();
+      printf("passou do decrement\n");
+      // checa se algum IO chegou (foi pedido algum IO)
+      if(last->next->pIo.ioArrivalTime == (last->next->pExecTime - last->next->pRemainingTime)) {
+        blockProcess(&last);
+        printf("Processo %d voltou pra espera por causa de um IO.\n", last->next->pId);
+        traverse(last);
+        // reinicia o quantum para o novo processo que entrará em execução
+        t_quantum = 0;
+      }
+
+      
     }
 
     // checa se alguém chegou na fila (algum processo foi iniciado)
@@ -55,7 +57,7 @@ int Escalonador(Process **P){
     
     if(last != NULL) {
       // checa se o processo em execução terminou
-      if((last->next->pExecTime == 0)) {
+      if((last->next->pRemainingTime == 0)) {
         printf("Processo %d acabou.\n", last->next->pId);
         // deleta da lista de espera o processo que acabou de terminar
         deleteHead(&last);
@@ -66,6 +68,8 @@ int Escalonador(Process **P){
         // reinicia o quantum para o novo processo que entrará em execução
         t_quantum = 0;
       }
+
+      checkBlockedProcesses(&last); // n sei se é dps da checagem de quantum
 
       // checa se o processo em execução atingiu o tempo máximo de quantum
       if(t_quantum == QUANTUM) {
