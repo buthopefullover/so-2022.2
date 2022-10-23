@@ -216,17 +216,29 @@ void blockProcess(struct Process** last){
 }
 
 void changePriority (struct Process** fromListLast, struct Process** toListLast) {
-  (*toListLast) = insertAtEnd((*toListLast), (*fromListLast)->next);
+  struct Process * fromStart = (*fromListLast)->next;
+
+
+  if((*fromListLast)->next == (*fromListLast)){
+    (*fromListLast) = NULL;
+  }
+  else{
+    (*fromListLast)->next = fromStart->next;  // faz o prox elem de high ser a cabeça
+    
+  }
   
-  
-  removeHead(fromListLast);
-  
+
+  (*toListLast) = insertAtEnd((*toListLast), fromStart);
+
   if((*fromListLast) != NULL){
+    changeStatus((*toListLast), READY);
     changeStatus((*fromListLast)->next, RUNNING);
   }
-  else {
+  else if((*toListLast) == (*toListLast)->next){
     changeStatus((*toListLast)->next, RUNNING);
   }
+  else
+  changeStatus((*toListLast), READY);
 }
 
 void decrementBlockedProcesses () {

@@ -22,39 +22,10 @@ int Escalonador(Process **P){
 
 
 
-  printf("%d\n", t);
+  //printf("%d\n", t);
   while(ProcessExe){
-    //problema no delete HEAD abaixo.
-    if(lastHighPriority != NULL){
-      if((lastHighPriority->next->pRemainingTime == 0)) { // 
-        printf("Processo %d acabou.\n", lastHighPriority->next->pId);
-        // deleta da lista de espera o processo que acabou de terminar
-        deleteHead(&lastHighPriority); // INFO QUE VAI FALTAR NO FINAL
-        //estamos deletando a cabeça e não mudamos a next para running
-        printf("HIGH - ");
-        traverse(lastHighPriority);
-        // decrementa o total de processos a serem concluidos
-        ProcessExe--;
-        // reinicia o quantum para o novo processo que entrará em execução
-        t_quantum = 0;
-      }
-    }
-    if(lastLowPriority != NULL) {
-      // checa se o processo em execução terminou
-      if((lastLowPriority->next->pRemainingTime == 0)) {
-        printf("Processo %d acabou.\n", lastLowPriority->next->pId);
-        // deleta da lista de espera o processo que acabou de terminar
-        deleteHead(&lastLowPriority);
-        printf("LOW - ");
-        traverse(lastLowPriority);
-        // decrementa o total de processos a serem concluidos
-        ProcessExe--;
-        // reinicia o quantum para o novo processo que entrará em execução
-        t_quantum = 0;
-      }
-    }
-
-
+    printf("%d\n", t);
+    /*------------------Checa novo----------*/
     // checa se alguém chegou na fila (algum processo foi iniciado)
     for (int i=0; i<MAXPROCESSES; i++) {
       if (P[i]->pArrivalTime == t) {
@@ -76,12 +47,11 @@ int Escalonador(Process **P){
         printProcess(P[i]);
       } 
     }
-
+    /*------------------Checa bloquados----------*/
     // checar se há processos bloqueados
     checkBlockedProcesses(&lastLowPriority, &lastHighPriority); // n sei se é dps da checagem de quantum
 
-    decrementBlockedProcesses();
-
+    /*------------------Checa quantum----------*/
     // checa se o processo High Priority em execução terminou
     if(lastHighPriority != NULL){
       // checa se o processo High Priority em execução atingiu o tempo máximo de quantum
@@ -122,15 +92,9 @@ int Escalonador(Process **P){
     }
 
 
-    
 
 
-    
-
-    
-    
-    printf("%d\n", ++t);
-
+  /*------------------DIMINUI TUDO----------*/
     // checagem de alta prioridade 
     if(lastHighPriority != NULL && lastHighPriority->next->status == RUNNING) {
       // diminui o tempo restante de execução do processo atual
@@ -146,8 +110,6 @@ int Escalonador(Process **P){
         t_quantum = 0;
       }
     }
-
-
 
     // checagem de baixa prioridade
     else if(lastLowPriority != NULL)  {     // diminui o tempo restante de execução do processo atual
@@ -165,18 +127,38 @@ int Escalonador(Process **P){
       }
     }
 
-    
-    
 
+    //problema no delete HEAD abaixo.
+    if(lastHighPriority != NULL){
+      if((lastHighPriority->next->pRemainingTime == 0)) { // 
+        printf("Processo %d acabou.\n", lastHighPriority->next->pId);
+        // deleta da lista de espera o processo que acabou de terminar
+        deleteHead(&lastHighPriority); // INFO QUE VAI FALTAR NO FINAL
+        //estamos deletando a cabeça e não mudamos a next para running
+        printf("HIGH - ");
+        traverse(lastHighPriority);
+        // decrementa o total de processos a serem concluidos
+        ProcessExe--;
+        // reinicia o quantum para o novo processo que entrará em execução
+        t_quantum = 0;
+      }
+    }
+    if(lastLowPriority != NULL) {
+      // checa se o processo em execução terminou
+      if((lastLowPriority->next->pRemainingTime == 0)) {
+        printf("Processo %d acabou.\n", lastLowPriority->next->pId);
+        // deleta da lista de espera o processo que acabou de terminar
+        deleteHead(&lastLowPriority);
+        printf("LOW - ");
+        traverse(lastLowPriority);
+        // decrementa o total de processos a serem concluidos
+        ProcessExe--;
+        // reinicia o quantum para o novo processo que entrará em execução
+        t_quantum = 0;
+      }
+    }
 
-
-    
-
-
-    
-    
-    
-
+    decrementBlockedProcesses();
 
     // contador para não ir para infinito.
     if(t>=50){
@@ -184,7 +166,7 @@ int Escalonador(Process **P){
     }
 
     // incrementa o tempo geral do escalonador
-    
+    t++;
       
   }
     
