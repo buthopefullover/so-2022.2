@@ -38,6 +38,7 @@ typedef struct Process
 }Process;
 
 struct Process *blockedList[MAXPROCESSES];
+//struct Process *blockedList[MAXPROCESSES] = { NULL };
 
 void changeStatus(Process *process, STATUS status){
     process->status = status;
@@ -50,11 +51,11 @@ struct Process* insertAtEnd(Process * last, Process* newProcess) {
   if (last == NULL) {
     last = newProcess;
     newProcess -> next = last;
-    changeStatus(newProcess, RUNNING);
+    //changeStatus(newProcess, RUNNING);
     return last;
   }
 
-  changeStatus(newProcess, WAITING);
+  //changeStatus(newProcess, WAITING);
 
   // novo processo aponta para a cabeca da lista já que ele agora será o ultimo
   newProcess->next = last->next;
@@ -71,11 +72,30 @@ struct Process* insertAtEnd(Process * last, Process* newProcess) {
 }
 
 void changeHead(struct Process** last) {
-  changeStatus((*last)->next, WAITING);
+  changeStatus((*last)->next, READY);
   // faz a cabeca ser o ultimo processo
   *last = (*last)->next;
   changeStatus((*last)->next, RUNNING);
 }
+
+void removeHead(struct Process** last){
+  if (*last == NULL) return;
+
+
+  // checa se a lista tem apenas
+  if ((*last)->next == *last) {
+    //free(*last);
+    *last = NULL;
+    return;
+  }
+
+  struct Process *d;
+
+  d = (*last)->next;
+  (*last)->next = d->next;
+
+}
+
 
 void deleteHead(struct Process** last) {
   // checa se a lista esta vazia, ou seja não tem nada a ser deletado
@@ -94,6 +114,7 @@ void deleteHead(struct Process** last) {
 
   d = (*last)->next;
   (*last)->next = d->next;
+  changeStatus((*last)->next, RUNNING);
   free(d);
 
 }
@@ -157,35 +178,103 @@ void createProcesses (Process **pList) {
     }
 }
 
+void traverseBlockedList() {
+  printf("BLOQUEADOS - ");
+  for (int i = 0; i<MAXPROCESSES; i++) {
+    if ((blockedList)[i] == NULL){
+      printf("PID: NULL ");
+    }
+    else {
+      printf("PID: %d ", (blockedList)[i]->pId);
+    }
+    
+  }
+  printf("\n");
+}
+
+void unblockHead(Process **last ,int pid){
+  //changeStatus(blockedList[pid], WAITING);
+  
+  (*last)  = insertAtEnd( (*last), blockedList[pid]); //coloca o processo no final da lista
+  blockedList[pid] = NULL; //tirar de bloqueados
+  traverseBlockedList();
+
+  return;
+}
+
 void blockProcess(struct Process** last){
-  changeStatus((*last)->next, BLOCKED);
+  //changeStatus((*last)->next, BLOCKED);
+  printf("Processo %d entrou na lista de bloqueados por causa de um IO.\n", (*last)->next->pId);
   blockedList[(*last)->next->pId] = (*last)->next;
-  deleteHead(last);
+  
+  changeStatus((*last)->next, BLOCKED);
+  removeHead(last);
+  if((*last) != NULL){
+    changeStatus((*last)->next, RUNNING);
+  }
+  traverseBlockedList();
+}
+
+void changePriority (struct Process** fromListLast, struct Process** toListLast) {
+  (*toListLast) = insertAtEnd((*toListLast), (*fromListLast)->next);
+  
+  
+  removeHead(fromListLast);
+  
+  if((*fromListLast) != NULL){
+    changeStatus((*fromListLast)->next, RUNNING);
+  }
+  else {
+    changeStatus((*toListLast)->next, RUNNING);
+  }
 }
 
 void decrementBlockedProcesses () {
   for (int i = 0; i<MAXPROCESSES; i++) {
-    if(blockedList[i] != NULL) {
-      blockedList[i]->pIo.ioExecTime = blockedList[i]->pIo.ioExecTime--;
+    if( blockedList[i] != NULL) {
+      int temp = blockedList[i]->pIo.ioExecTime -1;
+      blockedList[i]->pIo.ioExecTime = temp;
     }
   }
 }
 
 
-void checkBlockedProcesses (struct Process** last) {
-    for (int i = 0; i<MAXPROCESSES; i++) {
-        printf("PROCESSO: %p \n", (blockedList)[i]);
-    }
-
+void checkBlockedProcesses (struct Process** lastLowPriority, struct Process** lastHighPriority) {
   for (int i = 0; i<MAXPROCESSES; i++) {
     if(blockedList[i] != NULL && blockedList[i]->pIo.ioExecTime == 0) {
-      changeStatus(blockedList[i], WAITING);
-      (*last) = insertAtEnd((*last), blockedList[i]);
-      
+      switch (blockedList[i]->pIo.ioType){
+        case DISC:
+          if (lastHighPriority == NULL && lastLowPriority == NULL) {
+            unblockHead(lastLowPriority, i);
+            changeStatus(*lastLowPriority, RUNNING);
+          }
+          else {
+            unblockHead(lastLowPriority, i);
+            changeStatus(*lastLowPriority, READY);
+          }
+          
+          break;
+        case TAPE:
+        case PRINTER:
+          if(lastHighPriority == NULL){
+            unblockHead(lastHighPriority, i);
+            changeStatus(*lastHighPriority, RUNNING);
+          }
+          else {
+            unblockHead(lastHighPriority, i);
+            changeStatus(*lastHighPriority, READY);
+          }
+          break;
+        default:
+        break;
+      }
+   
     }
   }
 }
 
+
+// imprime a lista de espera atualizada
 void traverse(struct Process* last) {
   struct Process* p;
 
